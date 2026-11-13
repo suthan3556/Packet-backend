@@ -5,27 +5,28 @@ const packetSchema = new mongoose.Schema(
   {
     sourceIP: {
       type: String,
-      required: true,
-      trim: true
+      default: ""
     },
 
     destinationIP: {
       type: String,
-      required: true,
-      trim: true
+      default: ""
     },
 
     protocol: {
       type: String,
-      required: true,
-      uppercase: true,
-      trim: true
+      default: ""
     },
 
     sourcePort: {
       type: mongoose.Schema.Types.Mixed,
       default: null
     },
+
+    service: {
+  type: String,
+  default: "UNKNOWN"
+},
 
     destinationPort: {
       type: mongoose.Schema.Types.Mixed,
@@ -38,11 +39,6 @@ const packetSchema = new mongoose.Schema(
     },
 
     classification: {
-      type: String,
-      default: "UNKNOWN"
-    },
-
-    service: {
       type: String,
       default: "UNKNOWN"
     },
