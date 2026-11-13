@@ -1,4 +1,3 @@
-
 const mongoose = require("mongoose");
 
 const packetSchema = new mongoose.Schema(
@@ -53,7 +52,8 @@ const packetSchema = new mongoose.Schema(
     }
   },
   {
-    timestamps: true
+    timestamps: true,
+    suppressReservedKeysWarning: true
   }
 );
 

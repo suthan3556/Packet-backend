@@ -1,8 +1,24 @@
-
 const express = require("express");
 const router = express.Router();
 
 const Packet = require("../models/Packet");
+const validatePacket = require("../validators/packetValidator");
+const classifyProtocol = require("../automata/protocolDFA");
+
+function identifyService(protocol, port) {
+  if (protocol === "ICMP") return "ICMP";
+
+  const services = {
+    21: "FTP",
+    22: "SSH",
+    25: "SMTP",
+    53: "DNS",
+    80: "HTTP",
+    443: "HTTPS"
+  };
+
+  return services[Number(port)] || protocol;
+}
 
 // GET ALL PACKETS
 router.get("/", async (req, res) => {
@@ -27,7 +43,7 @@ router.get("/", async (req, res) => {
 // ADD PACKET
 router.post("/", async (req, res) => {
   try {
-    const {
+    let {
       sourceIP,
       destinationIP,
       protocol,
@@ -39,16 +55,33 @@ router.post("/", async (req, res) => {
       errors
     } = req.body;
 
+    const normalizedProtocol = String(protocol || "").trim().toUpperCase();
+
+    // Auto-validate and classify if not already determined
+    if (isValid === undefined) {
+      const validation = validatePacket(req.body);
+      const dfaResult = classifyProtocol(normalizedProtocol);
+
+      errors = [...validation.errors];
+      if (!dfaResult.accepted) {
+        errors.push("Unsupported protocol: " + (normalizedProtocol || "Empty"));
+      }
+
+      classification = dfaResult.accepted ? dfaResult.classification : "UNKNOWN";
+      service = dfaResult.accepted ? identifyService(normalizedProtocol, destinationPort) : "UNKNOWN";
+      isValid = errors.length === 0;
+    }
+
     const packet = await Packet.create({
       sourceIP,
       destinationIP,
-      protocol,
+      protocol: normalizedProtocol,
       sourcePort,
       destinationPort,
-      isValid,
-      classification,
-      service,
-      errors
+      isValid: Boolean(isValid),
+      classification: classification || "UNKNOWN",
+      service: service || "UNKNOWN",
+      errors: Array.isArray(errors) ? errors : []
     });
 
     res.status(201).json({

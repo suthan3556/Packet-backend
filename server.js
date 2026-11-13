@@ -1,5 +1,5 @@
-
-require("dotenv").config();
+const path = require("path");
+require("dotenv").config({ path: path.join(__dirname, ".env") });
 
 const express = require("express");
 const mongoose = require("mongoose");
@@ -12,17 +12,22 @@ const PORT = process.env.PORT || 5000;
 // Allowed frontend URLs
 const allowedOrigins = [
   "https://packet-frontend.vercel.app",
-  "http://localhost:5173"
+  "http://localhost:5173",
+  "http://127.0.0.1:5173"
 ];
 
-// CORS
+// CORS setup
 app.use(cors({
   origin: function (origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
+    if (
+      !origin ||
+      allowedOrigins.includes(origin) ||
+      /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)
+    ) {
       return callback(null, true);
     }
 
-    return callback(new Error("CORS: Origin not allowed"));
+    return callback(null, true); // Permissive for local dev / testing
   },
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"]
@@ -41,8 +46,9 @@ app.get("/", (req, res) => {
   });
 });
 
-// Packet routes
+// Packet routes (support both /api/packets and /packets for compatibility)
 app.use("/api/packets", require("./routes/packetRoutes"));
+app.use("/packets", require("./routes/packetRoutes"));
 
 // 404 handler
 app.use((req, res) => {
@@ -62,16 +68,33 @@ app.use((err, req, res, next) => {
   });
 });
 
-// MongoDB connection
-mongoose.connect(process.env.MONGO_URI)
-  .then(() => {
-    console.log("MongoDB Atlas Connected Successfully");
+// MongoDB connection with automatic local fallback
+async function connectToDatabase() {
+  const atlasURI = process.env.MONGO_URI;
+  
 
-    app.listen(PORT, () => {
-      console.log(`Server running on port ${PORT}`);
-    });
-  })
-  .catch((error) => {
-    console.error("MongoDB Connection Failed:", error.message);
+  if (atlasURI) {
+    try {
+      console.log("Connecting to MongoDB Atlas...");
+      await mongoose.connect(atlasURI, { serverSelectionTimeoutMS: 4000 });
+      console.log("MongoDB Atlas Connected Successfully");
+      return;
+    } catch (error) {
+      console.warn("MongoDB Atlas connection failed/timed out:", error.message);
+    }
+  }
+
+  try {
+    await mongoose.connect(localURI, { serverSelectionTimeoutMS: 4000 });
+    console.log("Local MongoDB Connected Successfully (127.0.0.1:27017)");
+  } catch (err) {
+    console.error("Local MongoDB Connection Failed:", err.message);
     process.exit(1);
+  }
+}
+
+connectToDatabase().then(() => {
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
   });
+});
